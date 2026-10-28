@@ -1,5 +1,6 @@
 const COOKIE = "admin_session";
 const PENDING = "admin_pending";
+const SESSION_SECONDS = 60 * 60;
 
 export interface PendingLogin {
   challenge: string;
@@ -13,7 +14,7 @@ export function readSession(cookieHeader: string | null): string | null {
 }
 
 export function sessionCookie(token: string): string {
-  return `${COOKIE}=${encodeURIComponent(token)}; ${flags(900)}`;
+  return `${COOKIE}=${encodeURIComponent(token)}; ${flags(SESSION_SECONDS)}`;
 }
 
 export function clearSessionCookie(): string {

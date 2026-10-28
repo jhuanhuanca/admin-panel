@@ -116,7 +116,7 @@ export default define.page<typeof handler>(function LoginPage({ data }) {
         <div class="card-body">
           <h1 class="card-title text-center text-2xl">Ingreso de staff</h1>
           <p class="mt-3 text-center text-sm text-bodytext">
-            Esta sesión dura 15 minutos y pide un código de tu aplicación de
+            Esta sesión dura 1 hora y pide un código de tu aplicación de
             autenticación.
           </p>
           {aviso

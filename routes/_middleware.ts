@@ -1,5 +1,5 @@
 import { staffProfile } from "../lib/api/client.ts";
-import { clearSessionCookie, readSession } from "../lib/auth/session.ts";
+import { clearSessionCookie, readSession, sessionCookie } from "../lib/auth/session.ts";
 import { define } from "../utils.ts";
 
 export default define.middleware(async (ctx) => {
@@ -22,7 +22,13 @@ export default define.middleware(async (ctx) => {
   }
 
   ctx.state.staff = staff;
-  return await ctx.next();
+  const response = await ctx.next();
+  const setCookie = response.headers.get("set-cookie") ?? "";
+  if (!setCookie.includes("admin_session=")) {
+    response.headers.append("set-cookie", sessionCookie(token));
+  }
+
+  return response;
 });
 
 function redirect(location: string, cookie?: string): Response {

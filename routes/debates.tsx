@@ -1,6 +1,7 @@
 import { AdminShell } from "../components/AdminShell.tsx";
 import {
   listStaffDebates,
+  publishStaffDebate,
   setDebateState,
   type StaffDebate,
 } from "../lib/api/client.ts";
@@ -16,10 +17,13 @@ export const handler = define.handlers({
       });
     }
 
+    const url = new URL(ctx.req.url);
+
     return {
       data: {
         staffName: ctx.state.staff.name,
         debates: await listStaffDebates(token),
+        aviso: url.searchParams.get("aviso"),
       },
     };
   },
@@ -33,6 +37,21 @@ export const handler = define.handlers({
     }
 
     const form = await ctx.req.formData();
+    if (form.get("intent") === "publish") {
+      const message = await publishStaffDebate(token, {
+        body: String(form.get("body") ?? ""),
+        context: String(form.get("context") ?? ""),
+        image: String(form.get("image") ?? ""),
+        video: form.get("video") === "1",
+      });
+      const aviso = message === null ? "publicado" : message.slice(0, 180);
+
+      return new Response(null, {
+        status: 303,
+        headers: { location: `/debates?aviso=${encodeURIComponent(aviso)}` },
+      });
+    }
+
     const id = Number(form.get("debate_id"));
     const action = String(form.get("action") ?? "");
     if (
@@ -54,9 +73,76 @@ export default define.page<typeof handler>(function DebatesPage({ data }) {
     <AdminShell name={data.staffName} current="debates">
       <h1 class="card-title text-2xl">Debates</h1>
       <p class="mt-2 text-sm text-bodytext">
-        Cerrar congela comentarios y votos. Destacar deja un solo debate al
-        inicio de la lista pública.
+        Publica un debate para el inicio. Cerrar congela comentarios y votos.
+        Destacar deja un solo debate al inicio de la lista pública.
       </p>
+      {data.aviso === "publicado"
+        ? (
+          <p class="mt-4 rounded-md bg-lightsuccess px-3 py-2 text-sm text-success" role="status">
+            El debate ya está en el inicio público.
+          </p>
+        )
+        : data.aviso
+        ? (
+          <p class="mt-4 rounded-md bg-lighterror px-3 py-2 text-sm text-error" role="alert">
+            {data.aviso}
+          </p>
+        )
+        : null}
+      <form method="post" class="card mt-6">
+        <div class="card-body flex flex-col gap-4">
+          <h2 class="text-lg font-semibold text-dark">Nuevo debate</h2>
+          <div>
+            <label class="mb-2 block font-semibold text-dark" for="debate-body">
+              Texto
+            </label>
+            <textarea
+              id="debate-body"
+              name="body"
+              required
+              minLength={8}
+              maxLength={5000}
+              rows={4}
+              class="form-control"
+              placeholder="Escribe el debate que verá la comunidad."
+            />
+          </div>
+          <div>
+            <label class="mb-2 block font-semibold text-dark" for="debate-context">
+              Mesa
+            </label>
+            <input
+              id="debate-context"
+              name="context"
+              required
+              minLength={2}
+              maxLength={80}
+              value="Mesa"
+              class="form-control"
+            />
+          </div>
+          <div>
+            <label class="mb-2 block font-semibold text-dark" for="debate-image">
+              Enlace de la imagen
+            </label>
+            <input
+              id="debate-image"
+              name="image"
+              type="url"
+              maxLength={255}
+              class="form-control"
+              placeholder="https://..."
+            />
+          </div>
+          <label class="flex items-center gap-2 text-sm text-dark" for="debate-video">
+            <input id="debate-video" name="video" type="checkbox" value="1" />
+            La imagen es la portada de un video
+          </label>
+          <button type="submit" name="intent" value="publish" class="btn w-fit">
+            Publicar debate
+          </button>
+        </div>
+      </form>
       {data.debates.length === 0
         ? <p class="mt-6 text-sm text-bodytext">No hay debates.</p>
         : (

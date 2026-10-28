@@ -161,6 +161,39 @@ export async function decideLeader(
   return response.ok;
 }
 
+export async function publishStaffDebate(
+  token: string,
+  debate: { body: string; context: string; image: string; video: boolean },
+): Promise<string | null> {
+  const image = debate.image.trim();
+  const requestHeaders = headers(token);
+  requestHeaders.set("Content-Type", "application/json");
+  const response = await fetch(`${API}/api/admin/debates`, {
+    method: "POST",
+    headers: requestHeaders,
+    body: JSON.stringify({
+      body: debate.body.trim(),
+      context: debate.context.trim(),
+      image: image === "" ? null : image,
+      kind: image === "" ? "text" : debate.video ? "video" : "image",
+    }),
+  });
+
+  if (response.status === 201) {
+    return null;
+  }
+
+  const body = await response.json().catch(() => null) as Envelope<unknown> | null;
+  const errors = body?.errors ?? {};
+  for (const messages of Object.values(errors)) {
+    if (Array.isArray(messages) && typeof messages[0] === "string") {
+      return messages[0];
+    }
+  }
+
+  return "No se pudo publicar el debate.";
+}
+
 export async function setDebateState(
   token: string,
   id: number,
