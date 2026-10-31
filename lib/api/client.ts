@@ -14,13 +14,32 @@ export interface ReportItem {
   target_id: number;
   excerpt: string;
   reporter_nick: string | null;
+  reporter_name: string | null;
+  reporter_department: string | null;
+  reporter_municipality: string | null;
   author_nick: string | null;
+  author_name: string | null;
+  author_department: string | null;
+  author_municipality: string | null;
   created_at: string | null;
 }
 
 interface Envelope<T> {
   data: T;
   errors: Record<string, string[]>;
+}
+
+function directoryQuery(query: { q?: string; department?: string; municipality?: string }): string {
+  const params = new URLSearchParams();
+  const q = query.q?.trim() ?? "";
+  const department = query.department?.trim() ?? "";
+  const municipality = query.municipality?.trim() ?? "";
+  if (q !== "") params.set("q", q);
+  if (department !== "") params.set("department", department);
+  if (municipality !== "") params.set("municipality", municipality);
+  const text = params.toString();
+
+  return text === "" ? "" : `?${text}`;
 }
 
 function headers(token?: string): Headers {
@@ -89,22 +108,32 @@ export async function confirmStaffTotp(
 
 export async function staffProfile(
   token: string,
-): Promise<StaffProfile | null> {
-  const response = await fetch(`${API}/api/admin/me`, {
-    headers: headers(token),
-  });
-  if (!response.ok) {
+): Promise<StaffProfile | "auth" | null> {
+  try {
+    const response = await fetch(`${API}/api/admin/me`, {
+      headers: headers(token),
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (response.status === 401 || response.status === 403) {
+      return "auth";
+    }
+    if (!response.ok) {
+      return null;
+    }
+
+    const body = await response.json() as Envelope<StaffProfile>;
+    return body.data;
+  } catch {
     return null;
   }
-
-  const body = await response.json() as Envelope<StaffProfile>;
-  return body.data;
 }
 
 export interface StaffDebate {
   id: number;
   excerpt: string;
   author_nick: string | null;
+  category: string | null;
   closed: boolean;
   featured: boolean;
   created_at: string | null;
@@ -125,6 +154,9 @@ export async function listStaffDebates(token: string): Promise<StaffDebate[]> {
 export interface LeaderCandidateItem {
   id: number;
   nick: string | null;
+  name: string | null;
+  department: string | null;
+  municipality: string | null;
   participation: number;
   respect: number;
   status: string;
@@ -133,8 +165,9 @@ export interface LeaderCandidateItem {
 
 export async function listLeaderCandidates(
   token: string,
+  query: { q?: string; department?: string; municipality?: string } = {},
 ): Promise<LeaderCandidateItem[]> {
-  const response = await fetch(`${API}/api/admin/leaders`, {
+  const response = await fetch(`${API}/api/admin/leaders${directoryQuery(query)}`, {
     headers: headers(token),
   });
   if (!response.ok) {
@@ -163,7 +196,7 @@ export async function decideLeader(
 
 export async function publishStaffDebate(
   token: string,
-  debate: { body: string; context: string; image: string; video: boolean },
+  debate: { body: string; context: string; category: string; image: string; video: boolean },
 ): Promise<string | null> {
   const image = debate.image.trim();
   const requestHeaders = headers(token);
@@ -174,6 +207,7 @@ export async function publishStaffDebate(
     body: JSON.stringify({
       body: debate.body.trim(),
       context: debate.context.trim(),
+      category: debate.category,
       image: image === "" ? null : image,
       kind: image === "" ? "text" : debate.video ? "video" : "image",
     }),
@@ -194,6 +228,107 @@ export async function publishStaffDebate(
   return "No se pudo publicar el debate.";
 }
 
+export interface StaffNews {
+  id: number;
+  title: string;
+  summary: string;
+  source: string;
+  debate_id: number | null;
+  published_at: string | null;
+}
+
+export async function listStaffNews(token: string): Promise<StaffNews[]> {
+  const response = await fetch(`${API}/api/admin/news`, {
+    headers: headers(token),
+  });
+  if (!response.ok) {
+    return [];
+  }
+
+  const body = await response.json() as Envelope<StaffNews[]>;
+  return body.data;
+}
+
+export async function publishStaffNews(
+  token: string,
+  item: { title: string; summary: string; source: string; debateId: string },
+): Promise<string | null> {
+  const debateId = item.debateId.trim();
+  const requestHeaders = headers(token);
+  requestHeaders.set("Content-Type", "application/json");
+  const response = await fetch(`${API}/api/admin/news`, {
+    method: "POST",
+    headers: requestHeaders,
+    body: JSON.stringify({
+      title: item.title.trim(),
+      summary: item.summary.trim(),
+      source: item.source.trim(),
+      debate_id: debateId === "" ? null : Number(debateId),
+    }),
+  });
+
+  if (response.status === 201) {
+    return null;
+  }
+
+  const body = await response.json().catch(() => null) as Envelope<unknown> | null;
+  const errors = body?.errors ?? {};
+  for (const messages of Object.values(errors)) {
+    if (Array.isArray(messages) && typeof messages[0] === "string") {
+      return messages[0];
+    }
+  }
+
+  return "No se pudo publicar la noticia.";
+}
+
+export interface StaffHero {
+  slot: "home" | "polls";
+  announcement: string | null;
+  kind: "image" | "video" | null;
+  media: string | null;
+}
+
+export async function listStaffHeroes(token: string): Promise<{ home: StaffHero; polls: StaffHero }> {
+  const empty = (slot: "home" | "polls"): StaffHero => ({
+    slot,
+    announcement: null,
+    kind: null,
+    media: null,
+  });
+  const response = await fetch(`${API}/api/admin/heroes`, {
+    headers: headers(token),
+  });
+  if (!response.ok) {
+    return { home: empty("home"), polls: empty("polls") };
+  }
+
+  const body = await response.json() as Envelope<{ home: StaffHero; polls: StaffHero }>;
+  return body.data;
+}
+
+export async function saveStaffHero(token: string, form: FormData): Promise<string | null> {
+  const response = await fetch(`${API}/api/admin/heroes`, {
+    method: "POST",
+    headers: headers(token),
+    body: form,
+  });
+
+  if (response.ok) {
+    return null;
+  }
+
+  const body = await response.json().catch(() => null) as Envelope<unknown> | null;
+  const errors = body?.errors ?? {};
+  for (const messages of Object.values(errors)) {
+    if (Array.isArray(messages) && typeof messages[0] === "string") {
+      return messages[0];
+    }
+  }
+
+  return "No se pudo guardar el fondo.";
+}
+
 export async function setDebateState(
   token: string,
   id: number,
@@ -212,6 +347,9 @@ export async function setDebateState(
 
 export interface DashboardUser {
   nick: string;
+  name: string | null;
+  department: string | null;
+  municipality: string | null;
   created_at: string | null;
   metrics_consent: boolean;
   device_registered: boolean;
@@ -307,8 +445,9 @@ export async function loadStatus(token: string): Promise<StatusData | null> {
 
 export async function loadDashboard(
   token: string,
+  query: { q?: string; department?: string; municipality?: string } = {},
 ): Promise<DashboardData | null> {
-  const response = await fetch(`${API}/api/admin/dashboard`, {
+  const response = await fetch(`${API}/api/admin/dashboard${directoryQuery(query)}`, {
     headers: headers(token),
   });
   if (!response.ok) {

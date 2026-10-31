@@ -16,6 +16,17 @@ const statuses: Record<string, string> = {
   dismissed: "Descartado",
 };
 
+const targets: Record<string, string> = {
+  debate: "Debate",
+  argument: "Argumento",
+  news: "Noticia",
+};
+
+function placeOf(department: string | null, municipality: string | null): string {
+  const parts = [department, municipality].filter((item): item is string => item !== null && item !== "");
+  return parts.length === 0 ? "" : ` (${parts.join(", ")})`;
+}
+
 const reasons: Record<string, string> = {
   insulto: "Insulto",
   dato_falso: "Dato falso",
@@ -27,7 +38,7 @@ const reasons: Record<string, string> = {
 export const handler = define.handlers({
   async GET(ctx) {
     const token = ctx.state.token;
-    if (token === null || ctx.state.staff === null) {
+    if (token === null) {
       return new Response(null, {
         status: 303,
         headers: { location: "/ingresar" },
@@ -36,7 +47,7 @@ export const handler = define.handlers({
 
     return {
       data: {
-        staffName: ctx.state.staff.name,
+        staffName: ctx.state.staff?.name ?? "Mesa",
         reports: await listReports(token),
         sanctions: await listSanctions(token),
       },
@@ -125,13 +136,18 @@ export default define.page<typeof handler>(function ModerationPage({ data }) {
                 <div class="card-body">
                   <p class="text-sm text-bodytext">
                     {reasons[report.reason] ?? report.reason} ·{" "}
-                    {report.target_type} · {report.reporter_nick}
+                    {targets[report.target_type] ?? report.target_type} · Reporta{" "}
+                    {report.reporter_name || report.reporter_nick}
+                    {placeOf(report.reporter_department, report.reporter_municipality)}
                   </p>
                   <p class="mt-2 text-dark">{report.excerpt}</p>
                   {report.author_nick
                     ? (
                       <p class="mt-2 text-sm text-bodytext">
-                        Autor {report.author_nick}
+                        Autor {report.author_name || report.author_nick}
+                        {report.author_nick ? ` · ${report.author_nick}` : ""}
+                        {report.author_department ? ` · ${report.author_department}` : ""}
+                        {report.author_municipality ? ` · ${report.author_municipality}` : ""}
                       </p>
                     )
                     : null}

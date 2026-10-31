@@ -40,7 +40,7 @@ async function readNotices(
   });
   const type = response.headers.get("content-type") ?? "";
   if (!type.includes("text/event-stream") || response.body === null) {
-    return "auth";
+    return "retry";
   }
 
   const reader = response.body.getReader();
@@ -102,7 +102,7 @@ export default function ReportNotice() {
         } catch {
           if (abort.signal.aborted) return;
         }
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 15000));
       }
     };
 

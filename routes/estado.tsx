@@ -19,7 +19,7 @@ const drivers: Record<string, string> = {
 export const handler = define.handlers({
   async GET(ctx) {
     const token = ctx.state.token;
-    if (token === null || ctx.state.staff === null) {
+    if (token === null) {
       return new Response(null, {
         status: 303,
         headers: { location: "/ingresar" },
@@ -30,7 +30,7 @@ export const handler = define.handlers({
 
     return {
       data: {
-        staffName: ctx.state.staff.name,
+        staffName: ctx.state.staff?.name ?? "Mesa",
         status: status ?? empty,
       },
     };

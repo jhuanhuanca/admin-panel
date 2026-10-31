@@ -17,8 +17,14 @@ export default define.middleware(async (ctx) => {
   }
 
   const staff = await staffProfile(token);
-  if (staff === null) {
+  if (staff === "auth") {
     return redirect("/ingresar", clearSessionCookie());
+  }
+
+  if (staff === null) {
+    const response = await ctx.next();
+    response.headers.append("set-cookie", sessionCookie(token));
+    return response;
   }
 
   ctx.state.staff = staff;

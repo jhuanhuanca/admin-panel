@@ -6,7 +6,7 @@ const encoder = new TextEncoder();
 export const handler = define.handlers({
   GET(ctx) {
     const token = ctx.state.token;
-    if (token === null || ctx.state.staff === null) {
+    if (token === null) {
       return new Response(null, {
         status: 303,
         headers: { location: "/ingresar" },
@@ -35,8 +35,11 @@ export const handler = define.handlers({
           controller.enqueue(encoder.encode(": ok\n\n"));
           if (!hasAfter) {
             const page = await loadNewerReports(token, 0);
-            if (page === "auth" || page === null) {
+            if (page === "auth") {
               send("auth", {});
+              return;
+            }
+            if (page === null) {
               return;
             }
             send("cursor", { latest: page.latest });
@@ -55,7 +58,7 @@ export const handler = define.handlers({
                 after = Math.max(after, report.id);
               }
             }
-            await new Promise((resolve) => setTimeout(resolve, 5000));
+            await new Promise((resolve) => setTimeout(resolve, 15000));
           }
           if (!stopped) {
             send("bye", {});

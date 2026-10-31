@@ -4,31 +4,41 @@ import {
   loadDashboard,
   releaseDevice,
 } from "../lib/api/client.ts";
+import DirectoryFilters from "../islands/DirectoryFilters.tsx";
 import { define } from "../utils.ts";
 
 export const handler = define.handlers({
   async GET(ctx) {
     const token = ctx.state.token;
-    if (token === null || ctx.state.staff === null) {
+    if (token === null) {
       return new Response(null, {
         status: 303,
         headers: { location: "/ingresar" },
       });
     }
 
-    const dashboard = await loadDashboard(token);
+    const url = new URL(ctx.req.url);
+    const q = url.searchParams.get("q") ?? "";
+    const department = url.searchParams.get("department") ?? "";
+    const municipality = url.searchParams.get("municipality") ?? "";
+    const confirmar = url.searchParams.get("confirmar") ?? "";
+    const dashboard = await loadDashboard(token, { q, department, municipality });
 
     return {
       data: {
-        staffName: ctx.state.staff.name,
+        staffName: ctx.state.staff?.name ?? "Mesa",
         counts: dashboard?.counts ?? { users: 0, open_reports: 0, debates: 0 },
         users: dashboard?.users ?? [],
+        q,
+        department,
+        municipality,
+        confirmar,
       },
     };
   },
   async POST(ctx) {
     const token = ctx.state.token;
-    if (token === null || ctx.state.staff === null) {
+    if (token === null) {
       return new Response(null, {
         status: 303,
         headers: { location: "/ingresar" },
@@ -76,9 +86,35 @@ export default define.page<typeof handler>(function DashboardPage({ data }) {
         <div class="card-body">
           <h2 class="card-title">Cuentas</h2>
           <p class="mt-2 text-sm text-bodytext">
-            Liberar deja la cuenta a la espera. El próximo ingreso con ese nick
-            la ata al navegador nuevo.
+            El nombre y el departamento distinguen a la persona. Liberar deja
+            la cuenta a la espera hasta el próximo ingreso con ese nick.
           </p>
+          <DirectoryFilters
+            action="/"
+            q={data.q}
+            department={data.department}
+            municipality={data.municipality}
+          />
+          {data.confirmar
+            ? (
+              <form method="post" class="mt-4 rounded-md border border-border p-4">
+                <p class="text-sm text-dark">
+                  Vas a liberar el dispositivo de <strong>{data.confirmar}</strong>.
+                  La cuenta queda a la espera de un navegador nuevo.
+                </p>
+                <input type="hidden" name="nick" value={data.confirmar} />
+                <div class="mt-3 flex gap-2">
+                  <button type="submit" class="btn">Confirmar liberación</button>
+                  <a
+                    href={`/?q=${encodeURIComponent(data.q)}&department=${encodeURIComponent(data.department)}&municipality=${encodeURIComponent(data.municipality)}`}
+                    class="btn-outline-primary"
+                  >
+                    Cancelar
+                  </a>
+                </div>
+              </form>
+            )
+            : null}
           {data.users.length === 0
             ? <p class="mt-4 text-sm text-bodytext">No hay cuentas.</p>
             : (
@@ -86,8 +122,10 @@ export default define.page<typeof handler>(function DashboardPage({ data }) {
                 <table class="w-full text-left text-sm">
                   <thead>
                     <tr class="text-bodytext">
-                      <th class="py-3">Nick</th>
+                      <th class="py-3">Persona</th>
+                      <th class="py-3">Lugar</th>
                       <th class="py-3">Dispositivo</th>
+                      <th class="py-3">Última visita</th>
                       <th class="py-3">Métricas</th>
                       <th class="py-3">Alta</th>
                     </tr>
@@ -95,29 +133,28 @@ export default define.page<typeof handler>(function DashboardPage({ data }) {
                   <tbody class="divide-y divide-border">
                     {data.users.map((user: DashboardUser) => (
                       <tr key={user.nick}>
-                        <td class="py-3 font-medium text-dark">{user.nick}</td>
+                        <td class="py-3 font-medium text-dark">
+                          <span class="block">{user.name || user.nick}</span>
+                          <span class="text-xs text-bodytext">{user.nick}</span>
+                        </td>
+                        <td class="py-3">
+                          {user.department || "Sin departamento"}
+                          <span class="block text-xs text-bodytext">{user.municipality || "Sin municipio"}</span>
+                        </td>
                         <td class="py-3">
                           {user.device_registered
                             ? (
-                              <form
-                                method="post"
-                                class="flex items-center gap-3"
+                              <a
+                                href={`/?confirmar=${encodeURIComponent(user.nick)}&q=${encodeURIComponent(data.q)}&department=${encodeURIComponent(data.department)}&municipality=${encodeURIComponent(data.municipality)}`}
+                                class="btn btn-outline-primary btn-sm"
                               >
-                                <span>Registrado</span>
-                                <input
-                                  type="hidden"
-                                  name="nick"
-                                  value={user.nick}
-                                />
-                                <button
-                                  type="submit"
-                                  class="btn btn-outline-primary btn-sm"
-                                >
-                                  Liberar
-                                </button>
-                              </form>
+                                Liberar
+                              </a>
                             )
                             : "Sin dispositivo"}
+                        </td>
+                        <td class="py-3">
+                          {user.last_seen_at ? user.last_seen_at.slice(0, 16).replace("T", " ") : "Sin visita"}
                         </td>
                         <td class="py-3">
                           {user.metrics_consent ? "Activas" : "Sin métricas"}

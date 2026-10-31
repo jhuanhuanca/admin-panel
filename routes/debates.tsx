@@ -10,7 +10,7 @@ import { define } from "../utils.ts";
 export const handler = define.handlers({
   async GET(ctx) {
     const token = ctx.state.token;
-    if (token === null || ctx.state.staff === null) {
+    if (token === null) {
       return new Response(null, {
         status: 303,
         headers: { location: "/ingresar" },
@@ -21,7 +21,7 @@ export const handler = define.handlers({
 
     return {
       data: {
-        staffName: ctx.state.staff.name,
+        staffName: ctx.state.staff?.name ?? "Mesa",
         debates: await listStaffDebates(token),
         aviso: url.searchParams.get("aviso"),
       },
@@ -41,6 +41,7 @@ export const handler = define.handlers({
       const message = await publishStaffDebate(token, {
         body: String(form.get("body") ?? ""),
         context: String(form.get("context") ?? ""),
+        category: String(form.get("category") ?? ""),
         image: String(form.get("image") ?? ""),
         video: form.get("video") === "1",
       });
@@ -108,6 +109,16 @@ export default define.page<typeof handler>(function DebatesPage({ data }) {
             />
           </div>
           <div>
+            <label class="mb-2 block font-semibold text-dark" for="debate-category">
+              Categoría
+            </label>
+            <select id="debate-category" name="category" required class="form-control">
+              <option value="politica">Política</option>
+              <option value="territorio">Territorio</option>
+              <option value="economia">Economía</option>
+            </select>
+          </div>
+          <div>
             <label class="mb-2 block font-semibold text-dark" for="debate-context">
               Mesa
             </label>
@@ -152,6 +163,13 @@ export default define.page<typeof handler>(function DebatesPage({ data }) {
                 <div class="card-body">
                   <p class="text-sm text-bodytext">
                     {debate.author_nick}
+                    {debate.category === "territorio"
+                      ? " · Territorio"
+                      : debate.category === "economia"
+                      ? " · Economía"
+                      : debate.category === "politica"
+                      ? " · Política"
+                      : ""}
                     {debate.featured ? " · Destacado" : ""}
                     {debate.closed ? " · Cerrado" : " · Abierto"}
                   </p>

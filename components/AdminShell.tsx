@@ -9,6 +9,8 @@ export function AdminShell(props: {
     | "indicadores"
     | "lideres"
     | "debates"
+    | "noticias"
+    | "portadas"
     | "moderacion";
   children: ComponentChildren;
 }) {
@@ -41,6 +43,8 @@ export function AdminShell(props: {
               {item("indicadores", "/indicadores", "Indicadores")}
               {item("lideres", "/lideres", "Líderes")}
               {item("debates", "/debates", "Debates")}
+              {item("noticias", "/noticias", "Noticias")}
+              {item("portadas", "/portadas", "Portadas")}
               {item("moderacion", "/moderacion", "Moderación")}
             </ul>
           </nav>

@@ -4,6 +4,7 @@ import {
   type LeaderCandidateItem,
   listLeaderCandidates,
 } from "../lib/api/client.ts";
+import DirectoryFilters from "../islands/DirectoryFilters.tsx";
 import { define } from "../utils.ts";
 
 const labels: Record<string, string> = {
@@ -15,17 +16,25 @@ const labels: Record<string, string> = {
 export const handler = define.handlers({
   async GET(ctx) {
     const token = ctx.state.token;
-    if (token === null || ctx.state.staff === null) {
+    if (token === null) {
       return new Response(null, {
         status: 303,
         headers: { location: "/ingresar" },
       });
     }
 
+    const url = new URL(ctx.req.url);
+    const q = url.searchParams.get("q") ?? "";
+    const department = url.searchParams.get("department") ?? "";
+    const municipality = url.searchParams.get("municipality") ?? "";
+
     return {
       data: {
-        staffName: ctx.state.staff.name,
-        candidates: await listLeaderCandidates(token),
+        staffName: ctx.state.staff?.name ?? "Mesa",
+        candidates: await listLeaderCandidates(token, { q, department, municipality }),
+        q,
+        department,
+        municipality,
       },
     };
   },
@@ -60,8 +69,14 @@ export default define.page<typeof handler>(function LeadersPage({ data }) {
       <h1 class="card-title text-2xl">Candidatos a líder</h1>
       <p class="mt-2 text-sm text-bodytext">
         Solo aparecen cuentas que aceptaron las métricas y superan el umbral de
-        participación y respeto.
+        participación y respeto. El nombre y el departamento evitan confundir nicks parecidos.
       </p>
+      <DirectoryFilters
+        action="/lideres"
+        q={data.q}
+        department={data.department}
+        municipality={data.municipality}
+      />
       {data.candidates.length === 0
         ? <p class="mt-6 text-sm text-bodytext">No hay candidatos.</p>
         : (
@@ -69,11 +84,30 @@ export default define.page<typeof handler>(function LeadersPage({ data }) {
             {data.candidates.map((candidate: LeaderCandidateItem) => (
               <li key={candidate.id} class="card">
                 <div class="card-body">
-                  <p class="font-medium text-dark">{candidate.nick}</p>
-                  <p class="mt-2 text-sm text-bodytext">
-                    Participación {candidate.participation} · Respeto{" "}
-                    {candidate.respect} ·{" "}
-                    {labels[candidate.status] ?? candidate.status}
+                  <p class="text-lg font-semibold text-dark">{candidate.name || candidate.nick}</p>
+                  <p class="mt-1 text-sm text-bodytext">
+                    {candidate.nick}
+                    {candidate.department ? ` · ${candidate.department}` : " · Sin departamento"}
+                    {candidate.municipality ? ` · ${candidate.municipality}` : ""}
+                  </p>
+                  <dl class="mt-4 grid grid-cols-3 gap-3 text-sm">
+                    <div>
+                      <dt class="text-bodytext">Participación</dt>
+                      <dd class="text-lg font-semibold text-dark">{candidate.participation}</dd>
+                    </div>
+                    <div>
+                      <dt class="text-bodytext">Respeto</dt>
+                      <dd class="text-lg font-semibold text-dark">{candidate.respect}</dd>
+                    </div>
+                    <div>
+                      <dt class="text-bodytext">Estado</dt>
+                      <dd class="text-lg font-semibold text-dark">{labels[candidate.status] ?? candidate.status}</dd>
+                    </div>
+                  </dl>
+                  <p class="mt-3 text-xs text-bodytext">
+                    {candidate.calculated_at
+                      ? `Calculado el ${candidate.calculated_at.slice(0, 16).replace("T", " ")}`
+                      : "Sin fecha de cálculo"}
                   </p>
                   <form method="post" class="mt-4 flex flex-wrap gap-2">
                     <input
